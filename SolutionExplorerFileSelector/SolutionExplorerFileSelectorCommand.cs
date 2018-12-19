@@ -1,37 +1,44 @@
-﻿using System;
-using System.ComponentModel.Design;
-using System.Globalization;
-using System.Threading;
-using System.Threading.Tasks;
+﻿//// --------------------------------------------------------------------------------------------------------------------
+//// <copyright>Marc Schürmann</copyright>
+//// --------------------------------------------------------------------------------------------------------------------
+
+using EnvDTE;
+using EnvDTE80;
 using Microsoft.VisualStudio.Shell;
-using Microsoft.VisualStudio.Shell.Interop;
+using SolutionExplorerFileSelector.Misc;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.Design;
+using System.Linq;
 using Task = System.Threading.Tasks.Task;
 
 namespace SolutionExplorerFileSelector
 {
-    /// <summary>
-    /// Command handler
-    /// </summary>
+    /// <summary>Command handler</summary>
     internal sealed class SolutionExplorerFileSelectorCommand
     {
-        /// <summary>
-        /// Command ID.
-        /// </summary>
+        #region Public Fields
+
+        /// <summary>Command ID.</summary>
         public const int CommandId = 0x0100;
 
-        /// <summary>
-        /// Command menu group (command set GUID).
-        /// </summary>
+        /// <summary>Command menu group (command set GUID).</summary>
         public static readonly Guid CommandSet = new Guid("02018036-5a77-4bc9-a7f1-1373f81bdbcc");
 
-        /// <summary>
-        /// VS Package that provides this command, not null.
-        /// </summary>
+        #endregion Public Fields
+
+        #region Private Fields
+
+        /// <summary>VS Package that provides this command, not null.</summary>
         private readonly AsyncPackage package;
 
+        #endregion Private Fields
+
+        #region Private Constructors
+
         /// <summary>
-        /// Initializes a new instance of the <see cref="SolutionExplorerFileSelectorCommand"/> class.
-        /// Adds our command handlers for menu (commands must exist in the command table file)
+        /// Initializes a new instance of the <see cref="SolutionExplorerFileSelectorCommand"/>
+        /// class. Adds our command handlers for menu (commands must exist in the command table file)
         /// </summary>
         /// <param name="package">Owner package, not null.</param>
         /// <param name="commandService">Command service to add command to, not null.</param>
@@ -45,39 +52,55 @@ namespace SolutionExplorerFileSelector
             commandService.AddCommand(menuItem);
         }
 
-        /// <summary>
-        /// Gets the instance of the command.
-        /// </summary>
+        #endregion Private Constructors
+
+        #region Public Properties
+
+        /// <summary>Gets the instance of the command.</summary>
         public static SolutionExplorerFileSelectorCommand Instance
         {
             get;
             private set;
         }
 
-        /// <summary>
-        /// Gets the service provider from the owner package.
-        /// </summary>
-        private Microsoft.VisualStudio.Shell.IAsyncServiceProvider ServiceProvider
+        #endregion Public Properties
+
+        #region Private Properties
+
+        private static DTE dte { get; set; }
+        private static DTE2 dte2 { get; set; }
+
+        /// <summary>Gets the service provider from the owner package.</summary>
+        private IAsyncServiceProvider ServiceProvider
         {
             get
             {
-                return this.package;
+                return package;
             }
         }
 
-        /// <summary>
-        /// Initializes the singleton instance of the command.
-        /// </summary>
+        #endregion Private Properties
+
+        #region Public Methods
+
+        /// <summary>Initializes the singleton instance of the command.</summary>
         /// <param name="package">Owner package, not null.</param>
         public static async Task InitializeAsync(AsyncPackage package)
         {
-            // Switch to the main thread - the call to AddCommand in SolutionExplorerFileSelectorCommand's constructor requires
-            // the UI thread.
+            // Switch to the main thread - the call to AddCommand in
+            // SolutionExplorerFileSelectorCommand's constructor requires the UI thread.
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
 
             OleMenuCommandService commandService = await package.GetServiceAsync((typeof(IMenuCommandService))) as OleMenuCommandService;
             Instance = new SolutionExplorerFileSelectorCommand(package, commandService);
+
+            dte = await package.GetServiceAsync(typeof(DTE)) as DTE;
+            dte2 = await package.GetServiceAsync(typeof(DTE)) as DTE2;
         }
+
+        #endregion Public Methods
+
+        #region Private Methods
 
         /// <summary>
         /// This function is the callback used to execute the command when the menu item is clicked.
@@ -89,17 +112,49 @@ namespace SolutionExplorerFileSelector
         private void Execute(object sender, EventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            string message = string.Format(CultureInfo.CurrentCulture, "Inside {0}.MenuItemCallback()", this.GetType().FullName);
-            string title = "SolutionExplorerFileSelectorCommand";
 
-            // Show a message box to prove we were here
-            VsShellUtilities.ShowMessageBox(
-                this.package,
-                message,
-                title,
-                OLEMSGICON.OLEMSGICON_INFO,
-                OLEMSGBUTTON.OLEMSGBUTTON_OK,
-                OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
+            var logger = new TraceLogger(dte);
+
+            var itemName = GetItemName();
+            logger.Log($"The active document is '{itemName}'.");
+
+            var itemToSelect = dte2.ToolWindows.SolutionExplorer.GetItem(itemName);
+            logger.Log($"The item in the solution explorer is '{itemToSelect.Name}'.");
+
+            itemToSelect?.Select(vsUISelectionType.vsUISelectionTypeSelect);
         }
+
+        private string GetItemName()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var activeDocumentFullPath = dte.ActiveDocument.FullName.Split(new char[] { '\\' });
+            var fullPathFromSolution = new List<string>();
+            var isItemInSolution = false;
+            var solutionName = GetSolutionName();
+
+            foreach (var activeDocumentPathItem in activeDocumentFullPath)
+            {
+                if (activeDocumentPathItem == solutionName)
+                    isItemInSolution = true;
+
+                if (isItemInSolution)
+                    fullPathFromSolution.Add(activeDocumentPathItem);
+            }
+
+            return string.Join("\\", fullPathFromSolution);
+        }
+
+        private string GetSolutionName()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var solutionWithPath = dte.Solution.FileName.Replace(".sln", string.Empty);
+            var solutionPathItems = solutionWithPath.Split('\\');
+
+            return solutionPathItems.LastOrDefault();
+        }
+
+        #endregion Private Methods
     }
 }
