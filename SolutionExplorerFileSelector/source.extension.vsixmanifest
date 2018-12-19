@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
     <Metadata>
-        <Identity Id="SolutionExplorerFileSelector.79bee7d8-1a3c-4783-9ee5-334eb79fd701" Version="1.9" Language="en-US" Publisher="Marc Schürmann" />
+        <Identity Id="SolutionExplorerFileSelector.79bee7d8-1a3c-4783-9ee5-334eb79fd701" Version="1.10" Language="en-US" Publisher="Marc Schuermann" />
         <DisplayName>Solution Explorer file selector</DisplayName>
         <Description xml:space="preserve">A visual studio extension to locate the current file in the solution explorer.</Description>
         <License>LICENSE.txt</License>
